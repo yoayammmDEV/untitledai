@@ -1,0 +1,60 @@
+name: Build APK from Zip
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unpack and move files
+        run: |
+          # Находим любой zip-файл в корне репозитория (даже если в имени есть скобки)
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          echo "Найден архив: $ZIP_FILE"
+          
+          # Распаковываем
+          unzip -q "$ZIP_FILE"
+
+          # Ищем созданную распакованную папку
+          EXTRACTED_DIR=$(find . -maxdepth 1 -mindepth 1 -type d ! -name ".*" | head -n 1)
+          echo "Распаковано в папку: $EXTRACTED_DIR"
+
+          # Переносим всё содержимое в корень репозитория
+          cp -r "$EXTRACTED_DIR"/* . 2>/dev/null || true
+          cp -r "$EXTRACTED_DIR"/.* . 2>/dev/null || true
+
+          # Проверяем, появились ли gradle-файлы
+          ls -la
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APK with Gradle
+        run: |
+          chmod +x gradlew || true
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: "**/build/outputs/apk/debug/*.apk"
+          retent
+ion-days: 7
