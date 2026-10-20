@@ -1,4 +1,4 @@
-name: Build APK
+name: Build AI Roleplay APK
 
 on:
   push:
@@ -10,34 +10,65 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract zip
-        run: unzip -q "*.zip"
-
-      - name: Move files to root
+      - name: Extract ZIP if uploaded as archive
         run: |
-          cp -r ai-roleplay-engine/* . || true
-          cp -r ai-roleplay-engine/.* . || true
+          shopt -s nullglob
+          zips=(*.zip)
+          if [ ${#zips[@]} -gt 0 ]; then
+            echo "Распаковка архива: ${zips[0]}"
+            unzip -q -o "${zips[0]}"
+            for dir in */; do
+              if [ -f "${dir}settings.gradle.kts" ] || [ -d "${dir}app" ]; then
+                cp -rn "$dir"* . 2>/dev/null || true
+                cp -rn "$dir".* . 2>/dev/null || true
+              fi
+            done
+          fi
 
-      - name: Set up Java
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: temurin
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK (API 36)
         uses: android-actions/setup-android@v3
 
-      - name: Build APK
+      - name: Install Android SDK 36 and Build Tools
         run: |
-          chmod +x gradlew || true
-          ./gradlew assembleDebug --stacktrace
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" || sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Upload Artifact
+      - name: Prepare debug.keystore and .env
+        run: |
+          if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+            cp .env.example .env
+          fi
+          if [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build Debug APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          else
+            gradle assembleDebug --no-daemon --stacktrace
+          fi
+
+      - name: Prepare APK for upload
+        run: |
+          mkdir -p apk_out
+          cp app/build/outputs/apk/debug/*.apk apk_out/
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/de
-          bug/*.apk
+          name: AI-Roleplay-Studio-Debug-APK
+          path: apk_out/
+          retent
+          ion-days: 7
