@@ -15,22 +15,16 @@ jobs:
 
       - name: Unpack and move files
         run: |
-          # Находим любой zip-файл в корне репозитория (даже если в имени есть скобки)
           ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
           echo "Найден архив: $ZIP_FILE"
-          
-          # Распаковываем
           unzip -q "$ZIP_FILE"
 
-          # Ищем созданную распакованную папку
           EXTRACTED_DIR=$(find . -maxdepth 1 -mindepth 1 -type d ! -name ".*" | head -n 1)
           echo "Распаковано в папку: $EXTRACTED_DIR"
 
-          # Переносим всё содержимое в корень репозитория
           cp -r "$EXTRACTED_DIR"/* . 2>/dev/null || true
           cp -r "$EXTRACTED_DIR"/.* . 2>/dev/null || true
 
-          # Проверяем, появились ли gradle-файлы
           ls -la
 
       - name: Set up Java 17
@@ -57,4 +51,4 @@ jobs:
           name: app-debug
           path: "**/build/outputs/apk/debug/*.apk"
           retent
-ion-days: 7
+          ion-days: 7
